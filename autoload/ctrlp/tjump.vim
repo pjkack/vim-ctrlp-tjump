@@ -16,6 +16,24 @@ if !exists('g:ctrlp_tjump_only_silent') | let g:ctrlp_tjump_only_silent = 0 | en
 " Skip tag name in list
 if !exists('g:ctrlp_tjump_skip_tag_name') | let g:ctrlp_tjump_skip_tag_name = 0 | en
 
+" Add tag scope to name in list, or as separte field when name is skipped
+if !exists('g:ctrlp_tjump_add_scope') | let g:ctrlp_tjump_add_scope = 0 | en
+
+" Scope resolution operator, by default :: for C++
+if !exists('g:ctrlp_tjump_scope_op') | let g:ctrlp_tjump_scope_op = '::' | en
+
+" List of known tag scope names, by default the C++ ones
+if !exists('g:ctrlp_tjump_scopes')
+  let g:ctrlp_tjump_scopes = [ 'class', 'struct', 'namespace', 'enum', 'union' ]
+endif
+
+" Should 'name', 'scope::name', 'scope' or nothing at all be displayed in list?
+if !g:ctrlp_tjump_skip_tag_name || g:ctrlp_tjump_add_scope
+  let s:ctrlp_tjump_display_name = 1
+else
+  let s:ctrlp_tjump_display_name = 0
+endif
+
 call add(g:ctrlp_ext_vars, {
       \ 'init': 'ctrlp#tjump#init()',
       \ 'accept': 'ctrlp#tjump#accept',
@@ -62,26 +80,28 @@ endfunction
 "
 function! ctrlp#tjump#init()
   let tgs = s:order_tags()
+  let max_display_name = s:ctrlp_tjump_display_name ? s:maxlen(tgs, 'display_name') + 1 : 0
   let max_short_filename = s:maxlen(tgs, 'short_filename') + 1
   let input = map(tgs, '
-        \ s:align_left(v:key + 1, 3) . "\t" .
-        \ v:val["pri"] . "\t" .
-        \ v:val["kind"] . "\t" . 
-        \ (g:ctrlp_tjump_skip_tag_name ? "" : v:val["name"] . "\t") .
-        \ s:align_right(v:val["short_filename"], max_short_filename)."\t".
+        \ s:align_left(v:key + 1, 3) . " " .
+        \ v:val["pri"] . " " .
+        \ v:val["kind"] . " " .
+        \ (s:ctrlp_tjump_display_name ? s:align_right(v:val["display_name"], max_display_name) . "\t" : "").
+        \ s:align_right(v:val["short_filename"], max_short_filename) . "\t" .
         \ v:val["short_cmd"]
         \ ')
 
   if !ctrlp#nosy()
-    cal ctrlp#hicheck('CtrlPTabExtra', 'Comment')
-
-    if g:ctrlp_tjump_skip_tag_name
-      sy match CtrlPTabExtra `\(.\{-}\t\)\{3}`
+    cal ctrlp#hicheck('CtrlPtjumpBegin', 'Comment')
+    cal ctrlp#hicheck('CtrlPtjumpName', 'Title')
+    cal ctrlp#hicheck('CtrlPtjumpFile', 'Directory')
+    if s:ctrlp_tjump_display_name
+      sy match CtrlPtjumpBegin `\(\d\| \)\{4}[FSC ]\{4}\a ` nextgroup=CtrlPtjumpName
+      sy match CtrlPtjumpName `.\{-}\t` contained nextgroup=CtrlPtjumpFile
     else
-      sy match CtrlPTabExtra `\(.\{-}\t\)\{4}`
+      sy match CtrlPtjumpBegin `\(\d\| \)\{4}[FSC ]\{4}\a ` nextgroup=CtrlPtjumpFile
     endif
-
-    sy match CtrlPTabExtra `.\{-}\t\zs.*\ze`
+    sy match CtrlPtjumpFile `.\{-}\t` contained
   en
   return input
 endfunction
@@ -130,7 +150,7 @@ function! s:open_tag(str, mode)
   " with the options restored before the 'tag' command is actually run.
   let cstopt = &cst
   set nocst
-  let idx = split(a:str, '\t')[0]
+  let idx = split(a:str)[0]
   if a:mode == 'e'
     exec ":silent! ".idx."tag ".s:word
   elseif a:mode == 't'
@@ -160,6 +180,7 @@ function! s:order_tags()
     let priority = s:priority(tgi)
     let lst = substitute(priority, ' ', '_', 'g')
     let tgi['pri'] = priority
+    let tgi['display_name'] = s:display_name(tgi)
     let tgi['short_cmd'] = s:short_cmd(tgi)
     let tgi['short_filename'] = s:short_filename(tgi['filename'])
     call call('add', [{lst}, tgi])
@@ -196,6 +217,26 @@ function! s:priority(tgi)
   let c_current_file = s:bname == fnamemodify(a:tgi['filename'], ':p') ? 'C' : ' '
   let priority = c_full_match.c_static_tag.c_current_file
   return priority
+endfunction
+
+" Return a display name based on scope and list settings
+function! s:display_name(tgi)
+  let result = !g:ctrlp_tjump_skip_tag_name ? a:tgi['name'] : ''
+  if g:ctrlp_tjump_add_scope
+    for key in g:ctrlp_tjump_scopes
+      if has_key(a:tgi, key)
+        let scope = a:tgi[key]
+        " let result = g:ctrlp_tjump_skip_tag_name ? scope : scope.g:ctrlp_tjump_scope_op.result
+        if g:ctrlp_tjump_skip_tag_name
+          let result = scope
+        elseif result !~ '^'.scope.g:ctrlp_tjump_scope_op
+          let result = scope.g:ctrlp_tjump_scope_op.result
+        endif
+        break
+      endif
+    endfor
+  endif
+  return result
 endfunction
 
 " Extract the trimmed cmd string between prefix and suffix
