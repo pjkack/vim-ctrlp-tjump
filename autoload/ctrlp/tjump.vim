@@ -1,3 +1,4 @@
+
 if (exists('g:loaded_ctrlp_tjump') && g:loaded_ctrlp_tjump)
       \ || v:version < 700 || &cp
   finish
@@ -63,18 +64,20 @@ function! ctrlp#tjump#exec(mode, ...)
   endif
 
   if s:word =~ "^/"
-    let s:tagexpr = s:word "treat word as a regexp, see :help tag-regexp
+    " treat word as a regexp, see :help tag-regexp
+    let taglistexpr = strpart(s:word, 1)
   else
-    let s:tagexpr = '/^'.s:word.'$' "create exact match regexp from word
+    " treat word as literal and construct an exact match regexp
+    let taglistexpr = '\V\^'.escape(s:word, '\').'\$'
   endif
-  " unlike :tag and :stag, taglist always expect a regular exppression
-  let s:taglist = taglist(strpart(s:tagexpr, 1))
+  " unlike :tag and :stag, taglist always expect a regular expression
+  let s:taglist = taglist(taglistexpr)
   let s:bname = fnamemodify(bufname('%'), ':p')
 
   if len(s:taglist) == 0
     echo("No tags found for: ".s:word)
   elseif len(s:taglist) == 1 && g:ctrlp_tjump_only_silent == 1
-    call feedkeys(":silent! tag ".s:tagexpr."\r", 'nt')
+    call feedkeys(":silent! tag ".s:word."\r", 'nt')
   else
     call ctrlp#init(ctrlp#tjump#id())
   endif
@@ -158,13 +161,13 @@ function! s:open_tag(str, mode)
   set nocst
   let idx = split(a:str)[0]
   if a:mode == 'e'
-    exec ":silent! ".idx."tag ".s:tagexpr
+    exec ":silent! ".idx."tag ".s:word
   elseif a:mode == 't'
-    exec ":silent! tab ".idx."tag ".s:tagexpr
+    exec ":silent! tab ".idx."tag ".s:word
   elseif a:mode == 'v'
-    exec ":silent! vertical ".idx."stag ".s:tagexpr
+    exec ":silent! vertical ".idx."stag ".s:word
   elseif a:mode == 'h'
-    exec ":silent! ".idx."stag ".s:tagexpr
+    exec ":silent! ".idx."stag ".s:word
   end
   let &cst = cstopt
 endfunction
