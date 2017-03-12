@@ -89,28 +89,32 @@ endfunction
 "
 function! ctrlp#tjump#init()
   let tgs = s:order_tags()
-  let max_display_name = s:ctrlp_tjump_display_name ? s:maxlen(tgs, 'display_name') + 1 : 0
-  let max_short_filename = s:maxlen(tgs, 'short_filename') + 1
+  let display_name_max = s:ctrlp_tjump_display_name ? s:maxlen(tgs, 'display_name') + 1 : 0
+  let short_filename_max = s:maxlen(tgs, 'short_filename') + 1
+  let display_name_width = s:clamp(display_name_max, 10, &columns / 2)
+  let short_filename_width = s:clamp(short_filename_max, 10, &columns / 2)
   let input = map(tgs, '
         \ s:align_left(v:key + 1, 3) . " " .
         \ v:val["pri"] . " " .
         \ v:val["kind"] . " " .
-        \ (s:ctrlp_tjump_display_name ? s:align_right(v:val["display_name"], max_display_name) . "\t" : "").
-        \ s:align_right(v:val["short_filename"], max_short_filename) . "\t" .
+        \ (s:ctrlp_tjump_display_name ? s:align_right(v:val["display_name"], display_name_width) . "\t" : "").
+        \ s:align_right(v:val["short_filename"], short_filename_width) . "\t" .
         \ v:val["short_cmd"]
         \ ')
 
   if !ctrlp#nosy()
     cal ctrlp#hicheck('CtrlPtjumpBegin', 'Comment')
-    cal ctrlp#hicheck('CtrlPtjumpName', 'Title')
-    cal ctrlp#hicheck('CtrlPtjumpFile', 'Directory')
+    cal ctrlp#hicheck('CtrlPtjumpName', 'Tag')
+    cal ctrlp#hicheck('CtrlPtjumpFile', 'Constant')
+    cal ctrlp#hicheck('CtrlPtjumpCode', 'Normal')
     if s:ctrlp_tjump_display_name
       sy match CtrlPtjumpBegin `\(\d\| \)\{4}[FSC ]\{4}\a ` nextgroup=CtrlPtjumpName
       sy match CtrlPtjumpName `.\{-}\t` contained nextgroup=CtrlPtjumpFile
     else
       sy match CtrlPtjumpBegin `\(\d\| \)\{4}[FSC ]\{4}\a ` nextgroup=CtrlPtjumpFile
     endif
-    sy match CtrlPtjumpFile `.\{-}\t` contained
+    sy match CtrlPtjumpFile `.\{-}\t` contained nextgroup=CtrlPtjumpCode
+    sy match CtrlPtjumpCode `.\{-}$` contained
   en
   return input
 endfunction
@@ -218,6 +222,15 @@ function! s:maxlen(tgs, key)
   endfo
   return max
 endfunction
+
+fu! s:clamp(val, min, max)
+  if a:val < a:min
+    return a:min
+  elseif a:val > a:max
+    return a:max
+  endif
+	return a:val
+endf
 
 " Return the FSC priority string of a tag, see :help tag-priority
 function! s:priority(tgi)
